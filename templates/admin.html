@@ -4,144 +4,375 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Admin — Visitor Log</title>
-  <meta http-equiv="refresh" content="30">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, sans-serif; background: #f4f6fa; color: #1a1a2e; min-height: 100vh; }
 
-    header {
-      background: #1a4fa0; color: #fff;
-      padding: 1rem 2rem;
-      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem;
+    :root {
+      --bg:       #0d1117;
+      --surface:  #161b22;
+      --surface2: #21262d;
+      --border:   #30363d;
+      --blue:     #388bfd;
+      --blue-dim: #1f3a6e;
+      --green:    #3fb950;
+      --yellow:   #d29922;
+      --red:      #f85149;
+      --purple:   #bc8cff;
+      --text:     #e6edf3;
+      --muted:    #8b949e;
+      --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
     }
-    header h1 { font-size: 1.2rem; }
-    .header-actions { display: flex; gap: .75rem; align-items: center; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Sidebar layout ─────────────────────────────────── */
+    .layout { display: flex; min-height: 100vh; }
+
+    .sidebar {
+      width: 220px; flex-shrink: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      padding: 1.5rem 1rem;
+      position: sticky; top: 0; height: 100vh;
+    }
+    .logo {
+      display: flex; align-items: center; gap: .6rem;
+      font-weight: 800; font-size: 1rem;
+      color: var(--text); margin-bottom: 2rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .logo-icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: var(--blue-dim); display: flex;
+      align-items: center; justify-content: center;
+      font-size: 1rem;
+    }
+    .nav { list-style: none; flex: 1; }
+    .nav li { margin-bottom: .25rem; }
+    .nav a, .nav button {
+      display: flex; align-items: center; gap: .6rem;
+      padding: .5rem .75rem; border-radius: 6px;
+      font-size: .88rem; font-weight: 500;
+      color: var(--muted); text-decoration: none;
+      background: none; border: none; cursor: pointer;
+      width: 100%; text-align: left;
+      transition: background .12s, color .12s;
+    }
+    .nav a:hover, .nav button:hover { background: var(--surface2); color: var(--text); }
+    .nav a.active { background: var(--blue-dim); color: var(--blue); }
+    .nav-icon { font-size: 1rem; width: 18px; text-align: center; }
+
+    .sidebar-footer { margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--border); }
+    .sidebar-footer a {
+      display: flex; align-items: center; gap: .6rem;
+      font-size: .82rem; color: var(--muted); text-decoration: none;
+      padding: .4rem .5rem; border-radius: 6px;
+    }
+    .sidebar-footer a:hover { color: var(--text); }
+
+    /* ── Main content ───────────────────────────────────── */
+    .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+    .topbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: .85rem 2rem;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 5;
+    }
+    .topbar-title { font-size: 1rem; font-weight: 700; }
+    .topbar-right { display: flex; align-items: center; gap: .75rem; }
+
+    .badge-live {
+      display: flex; align-items: center; gap: .4rem;
+      background: #1a3a1a; color: var(--green);
+      border: 1px solid #2d6a2d;
+      border-radius: 20px; padding: .25rem .75rem;
+      font-size: .78rem; font-weight: 600;
+    }
+    .dot-live {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--green);
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
     .btn {
-      padding: .4rem .9rem; border-radius: 6px; font-size: .85rem;
-      font-weight: 600; cursor: pointer; text-decoration: none; border: none;
+      padding: .4rem .9rem; border-radius: 6px;
+      font-size: .82rem; font-weight: 600;
+      cursor: pointer; text-decoration: none;
+      border: 1px solid transparent;
+      transition: all .12s;
     }
-    .btn-danger { background: #e53e3e; color: #fff; }
-    .btn-danger:hover { background: #c0392b; }
-    .btn-ghost  { background: rgba(255,255,255,.15); color: #fff; }
-    .btn-ghost:hover { background: rgba(255,255,255,.25); }
+    .btn-red {
+      background: rgba(248,81,73,.15); color: var(--red);
+      border-color: rgba(248,81,73,.3);
+    }
+    .btn-red:hover { background: rgba(248,81,73,.25); }
 
-    .stats {
-      display: flex; gap: 1rem; flex-wrap: wrap;
-      padding: 1rem 2rem;
+    /* ── Stat cards ─────────────────────────────────────── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 1rem; padding: 1.5rem 2rem;
     }
-    .stat-card {
-      background: #fff; border-radius: 10px;
-      padding: .75rem 1.25rem;
-      box-shadow: 0 2px 8px rgba(0,0,0,.05);
-      min-width: 140px;
+    .stat {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px; padding: 1.1rem 1.25rem;
+      position: relative; overflow: hidden;
     }
-    .stat-label { font-size: .75rem; color: #666; text-transform: uppercase; letter-spacing: .05em; }
-    .stat-value { font-size: 1.6rem; font-weight: 800; color: #1a4fa0; }
+    .stat::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0;
+      height: 3px;
+    }
+    .stat.blue::before  { background: var(--blue); }
+    .stat.green::before { background: var(--green); }
+    .stat.purple::before{ background: var(--purple); }
+    .stat.yellow::before{ background: var(--yellow); }
 
-    .table-wrap { padding: 0 2rem 2rem; overflow-x: auto; }
-    table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.05); }
-    thead { background: #f0f4ff; }
+    .stat-icon  { font-size: 1.4rem; margin-bottom: .4rem; }
+    .stat-label { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; margin-bottom: .2rem; }
+    .stat-val   { font-size: 2rem; font-weight: 800; line-height: 1; }
+    .stat.blue  .stat-val  { color: var(--blue); }
+    .stat.green .stat-val  { color: var(--green); }
+    .stat.purple.stat-val  { color: var(--purple); }
+    .stat.yellow .stat-val { color: var(--yellow); }
+
+    /* ── Table ──────────────────────────────────────────── */
+    .section { padding: 0 2rem 2rem; }
+    .section-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: .75rem;
+    }
+    .section-title { font-size: .88rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+
+    .filter-bar { display: flex; gap: .5rem; }
+    .filter-btn {
+      padding: .3rem .75rem; border-radius: 20px;
+      font-size: .78rem; font-weight: 600; cursor: pointer;
+      border: 1px solid var(--border); background: none;
+      color: var(--muted); transition: all .12s;
+    }
+    .filter-btn.active, .filter-btn:hover { background: var(--surface2); color: var(--text); border-color: var(--blue); }
+
+    .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; background: var(--surface); }
+    thead tr { border-bottom: 1px solid var(--border); }
     th {
       padding: .65rem 1rem; text-align: left;
-      font-size: .78rem; text-transform: uppercase;
-      letter-spacing: .06em; color: #444;
-      border-bottom: 2px solid #dde1e7;
-      white-space: nowrap;
+      font-size: .72rem; text-transform: uppercase;
+      letter-spacing: .07em; color: var(--muted);
+      white-space: nowrap; font-weight: 600;
     }
-    td { padding: .6rem 1rem; border-bottom: 1px solid #eef0f5; font-size: .88rem; }
-    tr:last-child td { border-bottom: none; }
-    tr:hover td { background: #f8f9ff; }
+    td { padding: .65rem 1rem; border-bottom: 1px solid var(--border); font-size: .85rem; vertical-align: middle; }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: var(--surface2); }
 
-    .ip    { font-family: monospace; font-weight: 700; color: #1a4fa0; }
-    .path  { font-family: monospace; color: #555; }
-    .ua    { color: #777; font-size: .78rem; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .time  { white-space: nowrap; color: #888; font-size: .8rem; }
-    .num   { color: #aaa; font-size: .8rem; }
+    .row-num { color: var(--muted); font-size: .75rem; font-family: var(--font-mono); }
 
-    .badge-page { display: inline-block; padding: .15rem .5rem; border-radius: 10px; font-size: .75rem; font-weight: 600; }
-    .badge-home  { background: #e8f0fe; color: #1a4fa0; }
-    .badge-test  { background: #d4edda; color: #1e7e34; }
-    .badge-api   { background: #fff3cd; color: #856404; }
-    .badge-other { background: #f0f0f0; color: #555; }
+    .time-cell { white-space: nowrap; }
+    .time-date { color: var(--muted); font-size: .75rem; }
+    .time-hms  { font-family: var(--font-mono); font-size: .82rem; }
 
-    .empty { text-align: center; padding: 3rem; color: #aaa; font-size: 1rem; }
-    .refresh-note { text-align: center; padding: .5rem; font-size: .78rem; color: #aaa; }
+    .ip-cell { font-family: var(--font-mono); }
+    .ip-main { font-weight: 700; color: var(--blue); font-size: .88rem; }
+    .ip-proxy { color: var(--muted); font-size: .72rem; }
+
+    .page-badge {
+      display: inline-flex; align-items: center; gap: .3rem;
+      padding: .2rem .6rem; border-radius: 20px;
+      font-size: .75rem; font-weight: 600;
+    }
+    .pb-home   { background: rgba(56,139,253,.15); color: var(--blue);   border: 1px solid rgba(56,139,253,.3); }
+    .pb-test   { background: rgba(63,185,80,.15);  color: var(--green);  border: 1px solid rgba(63,185,80,.3); }
+    .pb-api    { background: rgba(210,153,34,.15); color: var(--yellow); border: 1px solid rgba(210,153,34,.3); }
+    .pb-other  { background: rgba(139,148,158,.1); color: var(--muted);  border: 1px solid var(--border); }
+
+    .ua-cell { color: var(--muted); font-size: .78rem; max-width: 280px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .empty-state {
+      text-align: center; padding: 4rem 2rem;
+      background: var(--surface); border-radius: 10px;
+      border: 1px solid var(--border);
+    }
+    .empty-state .empty-icon { font-size: 2.5rem; margin-bottom: .75rem; }
+    .empty-state p { color: var(--muted); }
+
+    .footer-note {
+      text-align: center; padding: 1rem;
+      font-size: .75rem; color: var(--muted);
+      border-top: 1px solid var(--border);
+    }
+    #countdown { font-weight: 700; color: var(--blue); }
+
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+      .stats-grid { grid-template-columns: 1fr 1fr; padding: 1rem; }
+      .section { padding: 0 1rem 1rem; }
+      .topbar { padding: .75rem 1rem; }
+    }
   </style>
 </head>
 <body>
+<div class="layout">
 
-<header>
-  <h1>🛡 Admin — Visitor Log</h1>
-  <div class="header-actions">
-    <form method="post" action="/admin/clear" style="display:inline"
-          onsubmit="return confirm('Clear all visit logs?')">
-      <button class="btn btn-danger" type="submit">🗑 Clear Log</button>
-    </form>
-    <a class="btn btn-ghost" href="/admin/logout">Logout</a>
-    <a class="btn btn-ghost" href="/" target="_blank">↗ Site</a>
-  </div>
-</header>
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-icon">🛡</div>
+      SAT Admin
+    </div>
+    <ul class="nav">
+      <li><a href="/admin" class="active"><span class="nav-icon">📊</span> Visitor Log</a></li>
+      <li><a href="/" target="_blank"><span class="nav-icon">🌐</span> View Site</a></li>
+    </ul>
+    <div class="sidebar-footer">
+      <a href="/admin/logout">
+        <span>🚪</span> Logout
+      </a>
+    </div>
+  </aside>
 
-<div class="stats">
-  <div class="stat-card">
-    <div class="stat-label">Total Visits (log)</div>
-    <div class="stat-value">{{ total }}</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-label">Unique IPs</div>
-    <div class="stat-value">{{ visits | map(attribute='ip') | list | unique | list | length }}</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-label">Auto-refresh</div>
-    <div class="stat-value" style="font-size:1rem;padding-top:.3rem">Every 30s</div>
-  </div>
-</div>
+  <!-- Main -->
+  <div class="main">
 
-<div class="table-wrap">
-  {% if visits %}
-  <table>
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>Time (UTC)</th>
-        <th>IP Address</th>
-        <th>Page</th>
-        <th>Browser / User Agent</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for v in visits %}
-      <tr>
-        <td class="num">{{ loop.index }}</td>
-        <td class="time">{{ v.time }}</td>
-        <td class="ip">
-          {{ v.ip }}
-          {% if v.raw_ip and v.raw_ip != v.ip %}
-            <br><span style="font-size:.75rem;color:#aaa">proxy: {{ v.raw_ip }}</span>
-          {% endif %}
-        </td>
-        <td>
-          {% if v.path == "/" %}
-            <span class="badge-page badge-home">Home</span>
-          {% elif v.path.startswith("/test") %}
-            <span class="badge-page badge-test">Test</span>
-          {% elif v.path.startswith("/api") %}
-            <span class="badge-page badge-api">API {{ v.path }}</span>
-          {% else %}
-            <span class="badge-page badge-other">{{ v.path }}</span>
-          {% endif %}
-        </td>
-        <td class="ua" title="{{ v.ua }}">{{ v.ua }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-    <div class="empty">No visits recorded yet. Visit the site to see entries here.</div>
-  {% endif %}
-</div>
+    <!-- Top bar -->
+    <div class="topbar">
+      <div class="topbar-title">Visitor Log</div>
+      <div class="topbar-right">
+        <div class="badge-live"><div class="dot-live"></div> Live</div>
+        <form method="post" action="/admin/clear"
+              onsubmit="return confirm('Clear all visit logs?')">
+          <button class="btn btn-red" type="submit">🗑 Clear</button>
+        </form>
+      </div>
+    </div>
 
-<p class="refresh-note">Page auto-refreshes every 30 seconds. Showing last {{ total }} visits (max 500).</p>
+    <!-- Stat cards -->
+    <div class="stats-grid">
+      <div class="stat blue">
+        <div class="stat-icon">👥</div>
+        <div class="stat-label">Total Visits</div>
+        <div class="stat-val">{{ total }}</div>
+      </div>
+      <div class="stat green">
+        <div class="stat-icon">🌍</div>
+        <div class="stat-label">Unique IPs</div>
+        <div class="stat-val">{{ visits | map(attribute='ip') | list | unique | list | length }}</div>
+      </div>
+      <div class="stat purple">
+        <div class="stat-icon">📝</div>
+        <div class="stat-label">Tests Started</div>
+        <div class="stat-val">{{ visits | selectattr('path', 'equalto', '/test') | list | length }}</div>
+      </div>
+      <div class="stat yellow">
+        <div class="stat-icon">🏠</div>
+        <div class="stat-label">Home Views</div>
+        <div class="stat-val">{{ visits | selectattr('path', 'equalto', '/') | list | length }}</div>
+      </div>
+    </div>
 
+    <!-- Table -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">Recent Visitors</div>
+        <div class="filter-bar">
+          <button class="filter-btn active" onclick="filterTable('all', this)">All</button>
+          <button class="filter-btn" onclick="filterTable('home', this)">Home</button>
+          <button class="filter-btn" onclick="filterTable('test', this)">Test</button>
+          <button class="filter-btn" onclick="filterTable('api', this)">API</button>
+        </div>
+      </div>
+
+      {% if visits %}
+      <div class="table-wrap">
+        <table id="visit-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Time (UTC)</th>
+              <th>IP Address</th>
+              <th>Page</th>
+              <th>User Agent</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for v in visits %}
+            {% set parts = v.time.split(' ') %}
+            <tr data-page="{{ 'home' if v.path == '/' else 'test' if v.path.startswith('/test') else 'api' if v.path.startswith('/api') else 'other' }}">
+              <td class="row-num">{{ loop.index }}</td>
+              <td class="time-cell">
+                <div class="time-hms">{{ parts[1] }}</div>
+                <div class="time-date">{{ parts[0] }}</div>
+              </td>
+              <td class="ip-cell">
+                <div class="ip-main">{{ v.ip }}</div>
+                {% if v.raw_ip and v.raw_ip != v.ip %}
+                  <div class="ip-proxy">via {{ v.raw_ip }}</div>
+                {% endif %}
+              </td>
+              <td>
+                {% if v.path == "/" %}
+                  <span class="page-badge pb-home">🏠 Home</span>
+                {% elif v.path.startswith("/test") %}
+                  <span class="page-badge pb-test">📝 Test</span>
+                {% elif v.path.startswith("/api") %}
+                  <span class="page-badge pb-api">⚡ API</span>
+                {% else %}
+                  <span class="page-badge pb-other">{{ v.path }}</span>
+                {% endif %}
+              </td>
+              <td class="ua-cell" title="{{ v.ua }}">{{ v.ua }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        <div class="empty-state">
+          <div class="empty-icon">📭</div>
+          <p>No visits recorded yet.</p>
+          <p>Visit the site and refresh this page.</p>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="footer-note">
+      Auto-refreshing in <span id="countdown">30</span>s &nbsp;·&nbsp;
+      Showing last {{ total }} visits (max 500) &nbsp;·&nbsp;
+      <a href="/admin" style="color:var(--blue)">Refresh now</a>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /layout -->
+
+<script>
+  // Countdown timer
+  let secs = 30;
+  const cd = document.getElementById('countdown');
+  setInterval(() => {
+    secs--;
+    if (cd) cd.textContent = secs;
+    if (secs <= 0) location.reload();
+  }, 1000);
+
+  // Filter buttons
+  function filterTable(type, btn) {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('#visit-table tbody tr').forEach(row => {
+      row.style.display = (type === 'all' || row.dataset.page === type) ? '' : 'none';
+    });
+  }
+</script>
 </body>
 </html>
