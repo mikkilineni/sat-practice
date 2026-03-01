@@ -1,8 +1,11 @@
+import json
 import os
 import random
 import secrets
+import threading
 from collections import deque
 from datetime import datetime
+from urllib.request import urlopen
 from flask import Flask, jsonify, render_template, request, session, redirect, url_for
 from questions import QUESTIONS
 
@@ -15,6 +18,26 @@ ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
 visit_log = deque(maxlen=500)  # last 500 visits, survives restarts within a process
 
 
+def _fetch_geo(entry):
+    """Look up city/country for an IP in a background thread (ip-api.com free tier)."""
+    ip = entry["ip"]
+    # Skip private/loopback addresses
+    if ip in ("127.0.0.1", "::1") or ip.startswith("192.168.") or ip.startswith("10."):
+        entry["location"] = "Local"
+        return
+    try:
+        url = f"http://ip-api.com/json/{ip}?fields=status,city,regionName,country,countryCode"
+        with urlopen(url, timeout=3) as r:
+            d = json.loads(r.read())
+        if d.get("status") == "success":
+            cc = d.get("countryCode", "")
+            flag = "".join(chr(0x1F1E0 + ord(c) - ord("A")) for c in cc) if cc else ""
+            parts = [d.get("city"), d.get("regionName"), d.get("country")]
+            entry["location"] = flag + " " + ", ".join(p for p in parts if p)
+    except Exception:
+        pass
+
+
 @app.before_request
 def log_visit():
     # Skip admin routes and static files
@@ -22,13 +45,16 @@ def log_visit():
         return
     forwarded = request.headers.get("X-Forwarded-For", "")
     real_ip = forwarded.split(",")[0].strip() if forwarded else request.remote_addr
-    visit_log.appendleft({
+    entry = {
         "time": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
         "ip": real_ip,
         "raw_ip": request.remote_addr,
         "path": request.path,
         "ua": request.headers.get("User-Agent", "")[:120],
-    })
+        "location": "",
+    }
+    visit_log.appendleft(entry)
+    threading.Thread(target=_fetch_geo, args=(entry,), daemon=True).start()
 
 
 # ── Admin routes ──────────────────────────────────────────────────────
