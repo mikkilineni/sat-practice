@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin — Visitor Log</title>
+  <meta http-equiv="refresh" content="30">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f4f6fa; color: #1a1a2e; min-height: 100vh; }
+
+    header {
+      background: #1a4fa0; color: #fff;
+      padding: 1rem 2rem;
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem;
+    }
+    header h1 { font-size: 1.2rem; }
+    .header-actions { display: flex; gap: .75rem; align-items: center; }
+    .btn {
+      padding: .4rem .9rem; border-radius: 6px; font-size: .85rem;
+      font-weight: 600; cursor: pointer; text-decoration: none; border: none;
+    }
+    .btn-danger { background: #e53e3e; color: #fff; }
+    .btn-danger:hover { background: #c0392b; }
+    .btn-ghost  { background: rgba(255,255,255,.15); color: #fff; }
+    .btn-ghost:hover { background: rgba(255,255,255,.25); }
+
+    .stats {
+      display: flex; gap: 1rem; flex-wrap: wrap;
+      padding: 1rem 2rem;
+    }
+    .stat-card {
+      background: #fff; border-radius: 10px;
+      padding: .75rem 1.25rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,.05);
+      min-width: 140px;
+    }
+    .stat-label { font-size: .75rem; color: #666; text-transform: uppercase; letter-spacing: .05em; }
+    .stat-value { font-size: 1.6rem; font-weight: 800; color: #1a4fa0; }
+
+    .table-wrap { padding: 0 2rem 2rem; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.05); }
+    thead { background: #f0f4ff; }
+    th {
+      padding: .65rem 1rem; text-align: left;
+      font-size: .78rem; text-transform: uppercase;
+      letter-spacing: .06em; color: #444;
+      border-bottom: 2px solid #dde1e7;
+      white-space: nowrap;
+    }
+    td { padding: .6rem 1rem; border-bottom: 1px solid #eef0f5; font-size: .88rem; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f8f9ff; }
+
+    .ip    { font-family: monospace; font-weight: 700; color: #1a4fa0; }
+    .path  { font-family: monospace; color: #555; }
+    .ua    { color: #777; font-size: .78rem; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .time  { white-space: nowrap; color: #888; font-size: .8rem; }
+    .num   { color: #aaa; font-size: .8rem; }
+
+    .badge-page { display: inline-block; padding: .15rem .5rem; border-radius: 10px; font-size: .75rem; font-weight: 600; }
+    .badge-home  { background: #e8f0fe; color: #1a4fa0; }
+    .badge-test  { background: #d4edda; color: #1e7e34; }
+    .badge-api   { background: #fff3cd; color: #856404; }
+    .badge-other { background: #f0f0f0; color: #555; }
+
+    .empty { text-align: center; padding: 3rem; color: #aaa; font-size: 1rem; }
+    .refresh-note { text-align: center; padding: .5rem; font-size: .78rem; color: #aaa; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🛡 Admin — Visitor Log</h1>
+  <div class="header-actions">
+    <form method="post" action="/admin/clear" style="display:inline"
+          onsubmit="return confirm('Clear all visit logs?')">
+      <button class="btn btn-danger" type="submit">🗑 Clear Log</button>
+    </form>
+    <a class="btn btn-ghost" href="/admin/logout">Logout</a>
+    <a class="btn btn-ghost" href="/" target="_blank">↗ Site</a>
+  </div>
+</header>
+
+<div class="stats">
+  <div class="stat-card">
+    <div class="stat-label">Total Visits (log)</div>
+    <div class="stat-value">{{ total }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Unique IPs</div>
+    <div class="stat-value">{{ visits | map(attribute='ip') | list | unique | list | length }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Auto-refresh</div>
+    <div class="stat-value" style="font-size:1rem;padding-top:.3rem">Every 30s</div>
+  </div>
+</div>
+
+<div class="table-wrap">
+  {% if visits %}
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Time (UTC)</th>
+        <th>IP Address</th>
+        <th>Page</th>
+        <th>Browser / User Agent</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for v in visits %}
+      <tr>
+        <td class="num">{{ loop.index }}</td>
+        <td class="time">{{ v.time }}</td>
+        <td class="ip">
+          {{ v.ip }}
+          {% if v.raw_ip and v.raw_ip != v.ip %}
+            <br><span style="font-size:.75rem;color:#aaa">proxy: {{ v.raw_ip }}</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if v.path == "/" %}
+            <span class="badge-page badge-home">Home</span>
+          {% elif v.path.startswith("/test") %}
+            <span class="badge-page badge-test">Test</span>
+          {% elif v.path.startswith("/api") %}
+            <span class="badge-page badge-api">API {{ v.path }}</span>
+          {% else %}
+            <span class="badge-page badge-other">{{ v.path }}</span>
+          {% endif %}
+        </td>
+        <td class="ua" title="{{ v.ua }}">{{ v.ua }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <div class="empty">No visits recorded yet. Visit the site to see entries here.</div>
+  {% endif %}
+</div>
+
+<p class="refresh-note">Page auto-refreshes every 30 seconds. Showing last {{ total }} visits (max 500).</p>
+
+</body>
+</html>

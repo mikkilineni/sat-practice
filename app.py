@@ -1,13 +1,74 @@
 import os
 import random
-from flask import Flask, jsonify, render_template, request, session
+import secrets
+from collections import deque
+from datetime import datetime
+from flask import Flask, jsonify, render_template, request, session, redirect, url_for
 from questions import QUESTIONS
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "sat-practice-secret-2024")
 
 TIMERS = {"easy": 35 * 60, "moderate": 44 * 60, "hard": 44 * 60}  # seconds
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
 
+visit_log = deque(maxlen=500)  # last 500 visits, survives restarts within a process
+
+
+@app.before_request
+def log_visit():
+    # Skip admin routes and static files
+    if request.path.startswith("/admin") or request.path.startswith("/static"):
+        return
+    forwarded = request.headers.get("X-Forwarded-For", "")
+    real_ip = forwarded.split(",")[0].strip() if forwarded else request.remote_addr
+    visit_log.appendleft({
+        "time": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
+        "ip": real_ip,
+        "raw_ip": request.remote_addr,
+        "path": request.path,
+        "ua": request.headers.get("User-Agent", "")[:120],
+    })
+
+
+# ── Admin routes ──────────────────────────────────────────────────────
+
+@app.get("/admin/login")
+def admin_login():
+    return render_template("admin_login.html", error=None)
+
+
+@app.post("/admin/login")
+def admin_login_post():
+    pw = request.form.get("password", "")
+    if secrets.compare_digest(pw, ADMIN_PASSWORD):
+        session["admin"] = True
+        return redirect(url_for("admin"))
+    return render_template("admin_login.html", error="Wrong password.")
+
+
+@app.get("/admin/logout")
+def admin_logout():
+    session.pop("admin", None)
+    return redirect("/")
+
+
+@app.post("/admin/clear")
+def admin_clear():
+    if not session.get("admin"):
+        return redirect(url_for("admin_login"))
+    visit_log.clear()
+    return redirect(url_for("admin"))
+
+
+@app.get("/admin")
+def admin():
+    if not session.get("admin"):
+        return redirect(url_for("admin_login"))
+    return render_template("admin.html", visits=list(visit_log), total=len(visit_log))
+
+
+# ── Public routes ─────────────────────────────────────────────────────
 
 @app.get("/")
 def index():

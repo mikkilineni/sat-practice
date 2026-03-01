@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Login</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, sans-serif;
+      background: #f4f6fa;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    .card {
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 4px 24px rgba(0,0,0,.09);
+      padding: 2.5rem 2rem;
+      width: 100%;
+      max-width: 360px;
+    }
+    h1 { font-size: 1.4rem; color: #1a4fa0; margin-bottom: .4rem; }
+    p  { font-size: .88rem; color: #666; margin-bottom: 1.5rem; }
+    label { display: block; font-weight: 600; font-size: .85rem; margin-bottom: .4rem; }
+    input[type=password] {
+      width: 100%; padding: .7rem 1rem;
+      border: 2px solid #dde1e7; border-radius: 8px;
+      font-size: 1rem; outline: none;
+      transition: border-color .12s;
+    }
+    input[type=password]:focus { border-color: #1a4fa0; }
+    .error {
+      margin-top: .75rem;
+      background: #fdecea; color: #c0392b;
+      border-radius: 6px; padding: .5rem .75rem;
+      font-size: .85rem;
+    }
+    button {
+      margin-top: 1.25rem; width: 100%;
+      background: #1a4fa0; color: #fff;
+      border: none; border-radius: 8px;
+      padding: .75rem; font-size: 1rem;
+      font-weight: 700; cursor: pointer;
+      transition: background .12s;
+    }
+    button:hover { background: #163d80; }
+    .back { display: block; text-align: center; margin-top: 1rem; font-size: .85rem; color: #1a4fa0; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🔒 Admin Login</h1>
+    <p>SAT Practice — visitor dashboard</p>
+    <form method="post">
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" autofocus placeholder="Enter admin password" />
+      {% if error %}
+        <div class="error">{{ error }}</div>
+      {% endif %}
+      <button type="submit">Login</button>
+    </form>
+    <a class="back" href="/">← Back to site</a>
+  </div>
+</body>
+</html>
