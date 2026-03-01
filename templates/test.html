@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SAT Math – {{ difficulty|title }} Test</title>
+  <link rel="stylesheet" href="/static/style.css"/>
+</head>
+<body class="test-page">
+
+  <!-- Top bar -->
+  <header class="test-header">
+    <a href="/" class="back-link">← Back</a>
+    <div class="test-title">SAT Math · <span class="diff-badge diff-{{ difficulty }}">{{ difficulty|title }}</span></div>
+    <div class="timer-box">
+      <span class="timer-icon">⏱</span>
+      <span id="timer">--:--</span>
+    </div>
+  </header>
+
+  <!-- Progress bar -->
+  <div class="progress-wrap">
+    <div id="progress-bar" class="progress-bar" style="width:0%"></div>
+  </div>
+  <div class="progress-label">
+    Question <span id="q-current">–</span> of <span id="q-total">–</span>
+    &nbsp;·&nbsp; <span id="q-domain" class="domain-tag"></span>
+  </div>
+
+  <!-- Loading -->
+  <div id="loading" class="center-msg">Loading questions…</div>
+
+  <!-- Question panel -->
+  <div id="question-panel" class="question-panel" hidden>
+    <div class="question-number" id="q-label"></div>
+    <div class="question-prompt" id="q-prompt"></div>
+
+    <!-- Multiple choice -->
+    <div id="mc-choices" class="choices" hidden></div>
+
+    <!-- Grid-in -->
+    <div id="grid-in" class="grid-in" hidden>
+      <label>Enter your answer:</label>
+      <input type="text" id="grid-answer" placeholder="e.g. 3.5 or -2" autocomplete="off"/>
+    </div>
+
+    <div class="nav-buttons">
+      <button id="btn-prev" onclick="navigate(-1)" disabled>← Prev</button>
+      <div class="answered-count"><span id="answered-count">0</span> / <span id="total-count">0</span> answered</div>
+      <button id="btn-next" onclick="navigate(1)">Next →</button>
+    </div>
+  </div>
+
+  <!-- Submit bar -->
+  <div id="submit-bar" class="submit-bar" hidden>
+    <span id="submit-hint"></span>
+    <button id="btn-submit" class="btn-submit" onclick="submitTest()">Submit Test &amp; See Score</button>
+  </div>
+
+  <!-- Results panel -->
+  <div id="results-panel" class="results-panel" hidden>
+    <div class="score-card">
+      <div class="score-label">Your Score</div>
+      <div class="scaled-score" id="scaled-score"></div>
+      <div class="score-sub" id="score-sub"></div>
+      <div class="score-breakdown" id="score-breakdown"></div>
+    </div>
+    <h2 class="review-title">Answer Review</h2>
+    <div id="review-list"></div>
+    <a href="/" class="btn-home">Take Another Test</a>
+  </div>
+
+<script>
+const DIFFICULTY = "{{ difficulty }}";
+const TOTAL_SECONDS = {{ timer }};
+
+let questions = [];
+let current = 0;
+let userAnswers = {};  // id -> answer string
+let timerInterval = null;
+let secondsLeft = TOTAL_SECONDS;
+
+// ── Fetch questions ──────────────────────────────────────────────────
+async function loadQuestions() {
+  const resp = await fetch(`/api/questions/${DIFFICULTY}`);
+  questions = await resp.json();
+  document.getElementById('loading').hidden = true;
+  document.getElementById('question-panel').hidden = false;
+  document.getElementById('submit-bar').hidden = false;
+  document.getElementById('q-total').textContent = questions.length;
+  document.getElementById('total-count').textContent = questions.length;
+  startTimer();
+  renderQuestion();
+}
+
+// ── Timer ────────────────────────────────────────────────────────────
+function startTimer() {
+  updateTimerDisplay();
+  timerInterval = setInterval(() => {
+    secondsLeft--;
+    updateTimerDisplay();
+    if (secondsLeft <= 0) {
+      clearInterval(timerInterval);
+      submitTest();
+    }
+  }, 1000);
+}
+
+function updateTimerDisplay() {
+  const m = Math.floor(Math.abs(secondsLeft) / 60).toString().padStart(2, '0');
+  const s = (Math.abs(secondsLeft) % 60).toString().padStart(2, '0');
+  const el = document.getElementById('timer');
+  el.textContent = `${m}:${s}`;
+  el.className = secondsLeft <= 300 ? 'timer-warn' : '';
+}
+
+// ── Render question ──────────────────────────────────────────────────
+function renderQuestion() {
+  const q = questions[current];
+  const total = questions.length;
+
+  document.getElementById('q-label').textContent = `Question ${current + 1}`;
+  document.getElementById('q-prompt').textContent = q.prompt;
+  document.getElementById('q-current').textContent = current + 1;
+  document.getElementById('q-domain').textContent = q.domain;
+  document.getElementById('q-total').textContent = total;
+
+  // Progress
+  const pct = ((current + 1) / total) * 100;
+  document.getElementById('progress-bar').style.width = pct + '%';
+
+  // Nav buttons
+  document.getElementById('btn-prev').disabled = current === 0;
+  document.getElementById('btn-next').textContent = current === total - 1 ? 'Review →' : 'Next →';
+
+  // Answered count
+  document.getElementById('answered-count').textContent = Object.keys(userAnswers).length;
+
+  // Submit hint
+  const unanswered = total - Object.keys(userAnswers).length;
+  document.getElementById('submit-hint').textContent =
+    unanswered > 0 ? `${unanswered} question${unanswered > 1 ? 's' : ''} unanswered` : 'All questions answered ✓';
+
+  if (q.type === 'mc') {
+    document.getElementById('mc-choices').hidden = false;
+    document.getElementById('grid-in').hidden = true;
+    renderChoices(q);
+  } else {
+    document.getElementById('mc-choices').hidden = true;
+    document.getElementById('grid-in').hidden = false;
+    const inp = document.getElementById('grid-answer');
+    inp.value = userAnswers[q.id] || '';
+    inp.oninput = () => saveGridAnswer(q.id, inp.value);
+  }
+}
+
+function renderChoices(q) {
+  const container = document.getElementById('mc-choices');
+  container.innerHTML = '';
+  const saved = userAnswers[q.id];
+  for (const [letter, text] of Object.entries(q.choices)) {
+    const btn = document.createElement('button');
+    btn.className = 'choice-btn' + (saved === letter ? ' selected' : '');
+    btn.innerHTML = `<span class="choice-letter">${letter}</span><span class="choice-text">${text}</span>`;
+    btn.onclick = () => selectChoice(q.id, letter);
+    container.appendChild(btn);
+  }
+}
+
+function selectChoice(qid, letter) {
+  userAnswers[qid] = letter;
+  renderQuestion();
+}
+
+function saveGridAnswer(qid, val) {
+  if (val.trim()) {
+    userAnswers[qid] = val.trim();
+  } else {
+    delete userAnswers[qid];
+  }
+  document.getElementById('answered-count').textContent = Object.keys(userAnswers).length;
+  const unanswered = questions.length - Object.keys(userAnswers).length;
+  document.getElementById('submit-hint').textContent =
+    unanswered > 0 ? `${unanswered} question${unanswered > 1 ? 's' : ''} unanswered` : 'All questions answered ✓';
+}
+
+// ── Navigation ───────────────────────────────────────────────────────
+function navigate(dir) {
+  current = Math.max(0, Math.min(questions.length - 1, current + dir));
+  renderQuestion();
+}
+
+// ── Submit ───────────────────────────────────────────────────────────
+async function submitTest() {
+  clearInterval(timerInterval);
+  document.getElementById('question-panel').hidden = true;
+  document.getElementById('submit-bar').hidden = true;
+  document.getElementById('progress-wrap') && (document.querySelector('.progress-wrap').hidden = true);
+  document.querySelector('.progress-label').hidden = true;
+
+  const resp = await fetch('/api/grade', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(userAnswers),
+  });
+  const data = await resp.json();
+  showResults(data);
+}
+
+// ── Results ──────────────────────────────────────────────────────────
+function showResults(data) {
+  document.getElementById('results-panel').hidden = false;
+  document.getElementById('scaled-score').textContent = data.scaled;
+  document.getElementById('score-sub').textContent =
+    `${data.score} / ${data.total} correct  ·  ${DIFFICULTY.charAt(0).toUpperCase()+DIFFICULTY.slice(1)} level`;
+
+  // Domain breakdown
+  const domains = {};
+  for (const r of data.results) {
+    if (!domains[r.domain]) domains[r.domain] = {correct: 0, total: 0};
+    domains[r.domain].total++;
+    if (r.is_correct) domains[r.domain].correct++;
+  }
+  let bd = '<strong>By domain:</strong><br>';
+  for (const [d, s] of Object.entries(domains)) {
+    const pct = Math.round(s.correct / s.total * 100);
+    const bar = '█'.repeat(Math.round(pct / 10)) + '░'.repeat(10 - Math.round(pct / 10));
+    bd += `<span class="domain-row">${d}: ${bar} ${s.correct}/${s.total} (${pct}%)</span><br>`;
+  }
+  document.getElementById('score-breakdown').innerHTML = bd;
+
+  // Review list
+  const list = document.getElementById('review-list');
+  list.innerHTML = '';
+  data.results.forEach((r, i) => {
+    const div = document.createElement('div');
+    div.className = 'review-item ' + (r.is_correct ? 'correct' : 'incorrect');
+    let answerHTML = '';
+    if (r.type === 'mc' && r.choices) {
+      answerHTML = `
+        <div class="review-choices">
+          ${Object.entries(r.choices).map(([l, t]) => {
+            let cls = 'rc';
+            if (l === r.correct_answer) cls += ' rc-correct';
+            if (l === r.user_answer && !r.is_correct) cls += ' rc-wrong';
+            if (l === r.user_answer && r.is_correct) cls += ' rc-correct';
+            return `<span class="${cls}"><b>${l})</b> ${t}</span>`;
+          }).join('')}
+        </div>`;
+    } else {
+      const ua = r.user_answer || '(blank)';
+      answerHTML = `<div class="grid-review">
+        Your answer: <b>${ua}</b> &nbsp;|&nbsp; Correct: <b>${r.correct_answer}</b>
+      </div>`;
+    }
+    div.innerHTML = `
+      <div class="review-header">
+        <span class="review-num">Q${i+1}</span>
+        <span class="review-domain">${r.domain}</span>
+        <span class="review-status">${r.is_correct ? '✓ Correct' : '✗ Incorrect'}</span>
+      </div>
+      <div class="review-prompt">${r.prompt}</div>
+      ${answerHTML}
+      <details class="explanation">
+        <summary>Explanation</summary>
+        <p>${r.explanation}</p>
+      </details>
+    `;
+    list.appendChild(div);
+  });
+}
+
+// ── Init ─────────────────────────────────────────────────────────────
+loadQuestions();
+</script>
+</body>
+</html>

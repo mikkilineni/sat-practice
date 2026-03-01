@@ -1,0 +1,13 @@
+[project]
+name = "sat-practice"
+version = "0.1.0"
+description = "SAT Math Practice Test Generator"
+requires-python = ">=3.8"
+dependencies = ["flask"]
+
+[tool.setuptools]
+packages = []
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
